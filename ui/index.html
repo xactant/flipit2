@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <title>Flip It!</title>
+    <link rel="shortcut icon" href="./imgs/eth.ico" />
+    <script src="https://code.jquery.com/jquery-3.4.1.min.js"
+      integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
+      crossorigin="anonymous"></script>
+    <script type="text/javascript" src="./contracts/abi.js"></script>
+    <script type="text/javascript" src="./scripts/web3.min.js"></script>
+    <script type="text/javascript" src="./scripts/flipit_service.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous" />
+    <link rel="stylesheet" href="./styles/app.css"/>
+  </head>
+  <body>
+    <!-- Start page header -->
+    <div class="jumbotron jumbotron-fluid">
+      <div class="container">
+        <h1 class="display-4 wager-cntl-center-contents">FlipIt </h1>
+        <div class="row">
+          <div class="col-sm-5">
+            <label>Wagers Made:</label>
+            <span id="wagersMadeVal"></span>
+          </div>
+
+          <div class="col-sm-5">
+            <label>Wagers Won:</label>
+            <span id="wagersWonVal"></span>
+          </div>
+        </div>
+        <div class="row" id="totalWagerAmtRow">
+          <h3>
+            TOTAL WAGERS PAID:
+            <span id="totalWagerAmt"></span>
+            (ETH)!
+          </h3>
+        </div>
+        <div class="row">
+          <h3>
+            TOTAL WINNINGS PAID:
+            <span id="payoutVal"></span>
+            (ETH)!
+          </h3>
+        </div>
+        <div class="row">
+          <h2>
+            WIN:
+            <span id="multiplierVal"></span>
+            your wager!
+          </h2>
+        </div>
+      </div>
+    </div>
+    <!-- End page header -->
+
+    <!-- Start Unclaimed Win section -->
+    <div class="container-fluid" id="unclaimedContent">
+      <div class="row">
+        <div class="col-sm-12 wager-cntl-center-contents">
+          <h3>Claim Your Winnings!</h3>
+        </div>
+        <div class="col-sm-12 wager-cntl-center-contents">
+          <button type="button"
+          id="claim_button"
+          class="btn btn-primary"
+          onclick="claimTossResult()">Claim Win</button>
+        </div>
+      </div>
+    </div>
+    <!-- End Unclaimed Win -->
+
+    <!-- Start Player section -->
+    <div class="container-fluid" id="playerContent">
+      <div class="row">
+        <div class="col-sm-12 wager-cntl-center-contents">
+
+<!--
+<img src="./imgs/eth_coin_a.png" width="128" height="128"></img>
+-->
+          <div class="flip-card">
+            <div id="theCoin" class="flip-card-inner">
+          		<div id="coinFront" class="flip-card-front">
+          			<img src="./imgs/eth_coin_a.png" width="128" height="128"></img>
+          		</div>
+          		<div id="coinBack" class="flip-card-back flipped">
+          			<img src="./imgs/eth_coin_b.png" width="128" height="128"></img>
+          		</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row wager">
+        <div class="com-xs-0 col-sm-2"></div>
+        <div class="col-xs-5 col-sm-3 wager-cntl-center-contents">
+          <label>Wager</label>
+
+          <select id="tossCall"
+            class="selectpicker wager-cntl wager-choice">
+            <option value=0>Heads</option>
+            <option value=1>Tails</option>
+          </select>
+        </div>
+
+        <div class="col-sm-1 col-md-2 wager-cntl-center-contents">
+          <label>for</label>
+        </div>
+
+        <div class="col-sm-5 col-md-3 wager-cntl-center-contents">
+          <input type="text"
+            id="wager"
+            class="wager-cntl wager-amt"
+            placeholder="wager"
+            value="1" />
+
+          <select id="wagerDenomination"
+            class="selectpicker wager-cntl wager-dem"
+            data-style="btn-info">
+            <option value='gwei'>gwei</option>
+            <option value='finney'>finney</option>
+            <option value='ether'>eth</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-sm-12 wager-cntl-center-contents">
+          <button type="button"
+          id="toss_button"
+          class="btn btn-primary"
+          onclick="tossCoin()">Toss Coin</button>
+        </div>
+      </div>
+    </div>
+    <!-- End Player Section -->
+
+    <!-- Start Administrative section -->
+    <div class="container" id="adminContent">
+
+      <div class="row">
+        <div class="col-sm-10">
+          <label>Balance:</label>
+          <span id="contractBalance"></span>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-sm-10">
+          <label for="loadAmount">Amount</label>
+          <input type="text"
+            class="form-control"
+            id="loadAmount"
+            name="loadAmount"
+            placeholder="amount (eth)"
+            value="1" />
+
+          <button type="button"
+            id="load_amount_button"
+            class="btn btn-primary"
+            onclick="loadGame()">Send</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-sm-10">
+          <label for="withdrawAmount">Amount</label>
+          <input type="text"
+            class="form-control"
+            id="withdrawAmount"
+            name="withdrawAmount"
+            placeholder="amount (eth)" value="1" />
+
+          <button type="button"
+            id="withdraw_button"
+            class="btn btn-primary"
+            onclick="withdraw()">Withdraw</button>
+        </div>
+      </div>
+
+    </div>
+    <script>
+      var wagerChoice = 0;
+      var wagerId = null;
+      var claimed = true;
+      var winUnclaimed = false;
+      var tossReturned = false;
+
+      $(document).ready(function() {
+        flipitService.init().then (function(result){
+          var config = {
+            from: flipitService.playerAccount()
+          };
+
+          flipitService.tossResultReturnedEvent()(config, function(error, result){
+            if (!error)
+            {
+                console.log('ResultReturnedEvent wagerId: ' + wagerId + ', claimed: ' + claimed + ', result: ' + JSON.stringify(result));
+
+            } else {
+                 console.log(error);
+            }
+          }).on('data', function(event) {
+            console.log('ResultReturnedEvent on data: ' + JSON.stringify(event));
+
+            if (!tossReturned) {
+              tossReturned = true;
+              if(event.returnValues.win) {
+                console.log('WIN!!!');
+                //showWin(event.returnValues.queryId);
+              }
+              else {
+                showLoss();
+              }
+
+              $('#coinFront').removeClass('flipped');
+              $('#coinBack').removeClass('flipped');
+              $('#theCoin').removeClass('flip-fast');
+
+              refreshGame();
+            }
+
+
+          }) // 1
+          .on('changed', function(event){console.log('ResultReturnedEvent on changed: ' + JSON.stringify(event));})
+          .on('error', function(event){console.log('ResultReturnedEvent on error: ' + JSON.stringify(event));});
+
+
+          flipitService.tossSubmittedEvent()(config, function(error, result){
+            if (!error)
+                {
+                    console.log('SubmittedEvent result: ' + JSON.stringify(result));
+                    if(wagerId == null) {
+                      wagerId = result.returnValues.queryId;
+                      console.log('wagerId set to ' + wagerId);
+                    }
+                } else {
+                     console.log(error);
+                }
+          }).on('data', function(event) {
+            console.log('SubmittedEvent on data: ' + JSON.stringify(event));
+            /*
+            flipitService.lastToss().then(function(result) {
+              console.log('Last Toss Result: ' + JSON.stringify(result));
+            });
+            */
+          })
+          .on('changed', function(event){console.log('SubmittedEvent on changed: ' + JSON.stringify(event));})
+          .on('error', function(event){console.log('SubmittedEvent on error: ' + JSON.stringify(event));});
+
+          refreshStats().then(function(result) {
+            adjustView(result);
+          });
+        });
+      });
+
+      function adjustView(isAdmin) {
+        var hideThese = [];
+
+        if (winUnclaimed) {
+          hideThese = ['#playerContent','#adminContent','#totalWagerAmtRow'];
+
+          if ($('#unclaimedContent').hasClass('hidden')) {
+            $('#unclaimedContent').removeClass('hidden');
+          }
+        }
+        else if (isAdmin) {
+          hideThese = ['#playerContent','#unclaimedContent'];
+
+          if ($('#adminContent').hasClass('hidden')) {
+            $('#adminContent').removeClass('hidden');
+          }
+
+          if ($('#totalWagerAmtRow').hasClass('hidden')) {
+            $('#totalWagerAmtRow').removeClass('hidden');
+          }
+        }
+        else {
+          hideThese = ['#adminContent','#totalWagerAmtRow','#unclaimedContent'];
+
+          if ($('#playerContent').hasClass('hidden')) {
+            $('#playerContent').removeClass('hidden');
+          }
+        }
+
+        $(hideThese).each(function(id,element) {
+            if(!$(element).hasClass('hidden')) {
+              $(element).addClass('hidden');
+            }
+        });
+      }
+
+      function claimTossResult () {
+        flipitService.claimWin(wagerId, function(result) {
+          console.log('Claim Raw Result: ' + JSON.stringify(result));
+/*
+          claim = {"amount": result["0"],
+            "payout": result["1"],
+            "timestamp": result["2"],
+            "pending": result["3"],
+            "claimed": result["4"],
+            "win": result["5"],
+            "choice": result["6"],
+            "result": result["7"]};
+
+            console.log('Claim: ' + JSON.stringify(claim));
+*/
+
+            claimed = true;
+/*
+            if (claim.win) {
+              if (wagerChoice == 0) {
+                $('#coinBack').addClass('flipped');
+              }
+              else {
+                $('#coinFront').addClass('flipped');
+              }
+            }
+            else {
+              if (wagerChoice == 0) {
+                $('#coinFront').addClass('flipped');
+              }
+              else {
+                $('#coinBack').addClass('flipped');
+              }
+            }
+*/
+            refreshGame();
+        });
+      }
+
+/*
+      function claimWin () {
+        claimTossResult();
+      }
+*/
+      function loadGame () {
+        var amt = $('#loadAmount').val();
+
+        flipitService.loadGame(amt, refreshGame);
+      }
+
+      function refreshGame () {
+        refreshStats().then(function(result) {
+          adjustView(result);
+        });
+      }
+
+      function refreshStats() {
+        winUnclaimed = false;
+
+        return flipitService.gameStats().then(function(result){
+          var amt = flipitService.web3.utils
+            .fromWei(result.amountPaidOut, "ether");
+          var bal = flipitService.web3.utils
+            .fromWei(result.availableBalance, "ether");
+          var wagered = flipitService.web3.utils
+            .fromWei(result.amountWagered, "ether");
+          $("#wagersMadeVal").html(result.wagersMade);
+          $("#wagersWonVal").html(result.wagersWon);
+          $("#totalWagerAmt").html(wagered);
+          $("#payoutVal").html(amt);
+          $("#multiplierVal").html(result.winMultiplyer + 'x');
+          $('#contractBalance').html(bal);
+
+          winUnclaimed = result.unclaimedWin;
+
+          if (winUnclaimed) {
+            wagerId = result.unclaimedQueryId;
+          }
+
+          return flipitService.isAdmin();
+        });
+      }
+
+      function showLoss () {
+        alert ('Oh no, bad luck. Try again!');
+      }
+
+      function tossCoin () {
+        tossReturned = false;
+        claimed = false;
+        wagerId = null;
+        wagerChoice = $('#tossCall').val();
+        var amt = $('#wager').val();
+        var dem = $('#wagerDenomination').val();
+
+        $('#theCoin').addClass('flip-fast');
+
+        flipitService.doToss(wagerChoice, amt, dem, function(){console.log('toss callback called.')});
+      }
+
+      function withdraw () {
+        var amt = $('#withdrawAmount').val();
+;
+        flipitService.withdraw(amt, refreshGame);
+
+          /*
+
+                  flipitService.withdraw(amt, function() {
+                    flipitService.web3.eth.getBalance(contractAddress)
+                      .then(function(result) {
+                        $('#contractBalance').val(result);
+                      });
+                    });
+          */
+      }
+
+    </script>
+  </body>
+</html>

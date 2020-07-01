@@ -1,0 +1,20 @@
+{
+  "name": "flipit",
+  "version": "1.1.0",
+  "description": "FlipIt DAPP Phase 2",
+  "main": "truffle-config.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "test"
+  },
+  "author": "xactant",
+  "license": "ISC",
+  "dependencies": {
+    "@truffle/hdwallet-provider": "^1.0.33",
+    "bn.js": "^5.1.1",
+    "openzeppelin-solidity": "^2.1.2",
+    "truffle-assertions": "^0.9.2"
+  }
+}
