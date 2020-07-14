@@ -3,7 +3,7 @@ Example Solidity Contract and Web3 based UI DAPP. FlipIt II is a update of my Fl
 
 Like the original FlipIt, a player can choose heads or tails and place a bet in eth. If the player wins the toss, the player is paid 2x te amount wagered.
 
-![alt text](https://github.com/xactant/flipit2/img/flipit.png?raw=true)
+![FlipIt Image](https://raw.githubusercontent.com/xactant/flipit2/master/img/flipit.png)
 
 # Contract
 The contract is written in Solidity descends from usingProvable and uses the provable_newRandomDSQuery function to integrate with the random number oracle.
