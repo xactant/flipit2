@@ -1,19 +1,25 @@
 pragma solidity >=0.4.21 <0.7.0;
 
-import "../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "./SafeMath.sol";
 import "./Storage.sol";
+import "./provableAPI.sol";
 
-contract FlipIt_V1 is Storage {
+contract FlipIt_V1 is Storage, usingProvable {
   using SafeMath for uint256;
 
   /**
-  Event called when toss request has been submitted to the oracle.
+  * Event called when toss request has been submitted to the oracle.
   */
   event tossSubmitted(bytes32 queryId);
   /**
-  Event is raised when the oracle returns a result.
+  * Event is raised when the oracle returns a result.
   */
   event tossResultReturned(bytes32 queryId, bool win);
+  /**
+  * Event is used to send logging messages back to the client.
+  */
+  event flipItLog(string message);
+
   // TRUFFLE: Counter used for testing in truffle only.
   uint256 _queryIdCounter = 0;
 
@@ -29,6 +35,7 @@ contract FlipIt_V1 is Storage {
     _uint256Storage["wagers_won"] = 0;
     _uint256Storage["available_balance"] = 0;
     _uint256Storage["locked_balance"] = 0;
+    _uint256Storage["minimum_wager"] = 1000000000000000;
 
     // Define a value that indicates how much to pay out.
     _uint256Storage["win_multiplyer"] = 2;
@@ -40,6 +47,10 @@ contract FlipIt_V1 is Storage {
     // Initialize random number oracle values.
     _uint256Storage["query_execution_delay"] = 0;
     _uint256Storage["gas_for_callback"] = 200000;
+
+    _uint256Storage["num_bytes_requested"] = 1;
+
+    provable_setProof(proofType_Ledger);
   }
 
   /**
@@ -51,15 +62,20 @@ contract FlipIt_V1 is Storage {
     string memory _result,
     bytes memory _proof) public {
     bool isWinner = false;
-    // PROD require(msg.sender == provable_cbAddress());
+    // Must only be called by the oracle's contract
+    require(msg.sender == provable_cbAddress());
 
-    // Calculate toss result.
-    uint256 tossResult = 1; // PROD uint256(keccak256(abi.encodePacked(_result))) % 2;
+	emit flipItLog ("callback returned, processiong ...");
+
+    // Decode toss result.
+    uint256 tossResult = uint256(keccak256(abi.encodePacked(_result))) % 2;
+
     // Lookup player address.
     address playerAddress = _playerNumberRequests[_queryId];
 
     // If a playerAddress is found for the _queryId.
     if (playerAddress != address(0)) {
+      emit flipItLog ("calback: address found for queryId.");
       // Record tossResult
       _playerWagers[playerAddress].result = tossResult;
       // Set pending to false indicating the toss was returned.
@@ -80,11 +96,18 @@ contract FlipIt_V1 is Storage {
         // Other wager properties do not need to be set so save
         // some gas by not setting anything else :).
         _playerWagers[playerAddress].claimed = true;
+
+		emit flipItLog ("callback: tos lost.");
       }
       else {
         // Mark palyer wager as a win.
         _playerWagers[playerAddress].win = true;
+
+		emit flipItLog ("callback: toss won");
       }
+    }
+    else {
+        emit flipItLog ("calback: queryId not matched to an address");
     }
 
     // Signal listeners that a response has returned.
@@ -92,8 +115,9 @@ contract FlipIt_V1 is Storage {
   }
 
   /**
-  Provide a way for a win to be claimed. msg.sender must be associated
-  with _queryId.
+  * Provide a way for a win to be claimed. msg.sender must be associated
+  * with _queryId.
+  * TODO Implement roolback on transfer failure.
   */
   function claimWin (bytes32 _queryId) public
     returns (uint256, uint256, uint256, bool,
@@ -107,11 +131,15 @@ contract FlipIt_V1 is Storage {
     require (playerAddress == msg.sender, 'INVALID_CLAIM_B');
     // The wager associated with msg.sender must be unclaimed.
     require (_playerWagers[playerAddress].claimed == false, 'INVALID_CLAIM_C');
+
+	  emit flipItLog ("processing claim.");
+
     // Mark wager as claimed.
     _playerWagers[playerAddress].claimed = true;
     // If player's choice equals toss result, player is a winner.
     if (_playerWagers[playerAddress].choice ==
         _playerWagers[playerAddress].result) {
+	    emit flipItLog ("claim: processing win result.");
       // Calculate amount of payout that is amount to be deducted from the
       // available balance. The Player's wager is not part of available
       // balance.
@@ -166,15 +194,8 @@ contract FlipIt_V1 is Storage {
   * Retrieve game statistics.
   */
   function getGameStats() public view
-    returns (uint256, uint256, uint256, uint256, uint256, uint256, bool){
-    // THis variable is used to show that an unclaimed wager
-    // exists for msg.sender or not.
-    bool unclaimedWin = false;
-    // Determine if unclaimed win exists.
-    if(_playerWagers[msg.sender].win == true &&
-      _playerWagers[msg.sender].claimed == false) {
-        unclaimedWin = true;
-      }
+    returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256){
+
     // Return various stats about the contract, game,
     // and msg.sender.
     return (_uint256Storage["wagers_made"],
@@ -183,7 +204,7 @@ contract FlipIt_V1 is Storage {
       _uint256Storage["amount_paid_out"],
       _uint256Storage["available_balance"],
       _uint256Storage["win_multiplyer"],
-      unclaimedWin);
+      _uint256Storage["minimum_wager"]);
   }
 
   /**
@@ -203,23 +224,14 @@ contract FlipIt_V1 is Storage {
 
       _uint256Storage["available_balance"] =
         _uint256Storage["available_balance"].add(msg.value);
+
+	  emit flipItLog ("Added money to game.");
   }
 
-  /**
-  * TRUFFLE This is for testing only
-  * Submits a reuqest for a random number
-  */
-  function submitTossRequest () internal returns (bytes32) {
-    // TRUFFLE This is for testing only
-    _queryIdCounter = _queryIdCounter.add(1);
-    // TRUFFLE THis is for testing only
-    bytes32 queryId = bytes32(_queryIdCounter); //keccak256(_uint32Storage["queryid"]));
+  function setMinimumBet(uint256 _amt) public onlyOwner {
+      _uint256Storage["minimum_wager"] = _amt;
 
-    // Map the player's address to the ID of the random request.
-    _playerNumberRequests[queryId] = msg.sender;
-
-    __callback(queryId, "1", bytes("test"));
-    return queryId;
+	  emit flipItLog ("Minimum bet set.");
   }
 
   /**
@@ -233,7 +245,9 @@ contract FlipIt_V1 is Storage {
       _playerWagers[msg.sender].pending == false, "UNCLAIMED");
 
     // Must send a wager.
-    require (msg.value > 0, 'FUNDS_REQURIED');
+    require (msg.value >= _uint256Storage["minimum_wager"], 'WAGER_TOO_SMALL');
+
+	emit flipItLog ("Processing toss request ...");
 
     uint256 time = block.timestamp;
     uint256 wager = msg.value;
@@ -270,20 +284,31 @@ contract FlipIt_V1 is Storage {
       false // claimed
     );
 
-    bytes32 queryId = submitTossRequest();
+	emit flipItLog ("Submitting toss request ...");
+
+    bytes32 queryId = provable_newRandomDSQuery(
+      _uint256Storage["query_execution_delay"],
+      _uint256Storage["num_bytes_requested"],
+      _uint256Storage["gas_for_callback"]
+    );
 
     // Set random request id in player's wager record.
     _playerWagers[msg.sender].randomRequestId = queryId;
 
+    // Associate player address to queryId;
+    _playerNumberRequests[queryId] = msg.sender;
+
     emit tossSubmitted(queryId);
   }
+
 
   /**
   * Provide a way for the owner to reap his / her rewards. Owner only,
   * contract cannot be frozen.
+  * TODO Implement roolback on transfer failure.
   */
   function withdraw (uint256 _amt) public onlyOwner notFrozen {
-      require (_amt < _uint256Storage["available_balance"], "BAD_AMOUNT");
+      require (_amt <= _uint256Storage["available_balance"], "BAD_AMOUNT");
 
       _uint256Storage["available_balance"] = _uint256Storage["available_balance"].sub(_amt);
 

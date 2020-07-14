@@ -2,8 +2,10 @@
 * The flipitservice module provides an insterface to the
 * FlipIt contract.
 *
-* TODO Add better exception handling, web3 and contract
-* state checking.
+* TODO Add descriptive pop-ups for error status received from
+* contract - most are only logged to console.
+* TODO Currently events are handled in the UI script, it might
+* be better to move event handling into this module.
 */
 var flipitService = function () {
   //  Indicate that module has been initialized.
@@ -14,24 +16,17 @@ var flipitService = function () {
   var contractInstance = null;
   var tossSubmittedEvent;
   var tossResultReturnedEvent;
+  var flipItLogEvent;
   var winEvent = null;
   var loseEvent = null;
   var playerAccount = '';
-  var wager = initialWager();
+  var minimumWager = 1000000;
 
   // Provide player's available choices.
   winchoices = {
     HEADS: 0,
     TAILS: 1
   };
-
-  function initialWager() {
-    return {
-      claimed: false,
-      pending: false,
-      claimId: '0x0'
-    };
-  }
 
   /**
   * Wait for Web3 to be start and retrieve an instance of
@@ -48,6 +43,7 @@ var flipitService = function () {
 
       tossResultReturnedEvent = contractInstance.events.tossResultReturned;
       tossSubmittedEvent = contractInstance.events.tossSubmitted;
+      flipItLogEvent = contractInstance.events.flipItLog;
     });
   }
 
@@ -59,58 +55,36 @@ var flipitService = function () {
       from: playerAccount,
       gas: 2000000
     };
-/*
-    return contractInstance.methods.claimWin(queryId).call()
-      .then(function(result){
-        console.log("claimWin(queryId) returned: " + JSON.stringify(result));
-      });
-*/
+
     return contractInstance.methods.claimWin(queryId)
-    .send(config) //, function(){});
-    .on("transactionHash", function(hash) {
-      console.log('claim transactionHash: ' + hash);
-    })
-    .on("confirmation", function(confNum) {
-      console.log('claim confNum: ' + confNum);
-      if (!callbackCalled) {
-        callbackCalled = true;
-        callback();
-      }
-    })
-    .on("receipt", function(receipt){
-      console.log('claim receipt: ' + receipt);
+      .send(config)
+      .on("transactionHash", function(hash) {
+        console.log('claim transactionHash: ' + hash);
+      })
+      .on("confirmation", function(confNum) {
+        console.log('claim confNum: ' + confNum);
+        if (!callbackCalled) {
+          callbackCalled = true;
+          callback();
+        }
+      })
+      .on("receipt", function(receipt){
+        console.log('claim receipt: ' + receipt);
 
-      if (!callbackCalled) {
-        callbackCalled = true;
-        callback();
-      }
-    })
-    .on("error", function(err){
-      console.log('claim error: ' + err);
-    });
-
-    /*
-    .call()
-      .then(function(result) {
-        console.log(JSON.stringify(result));
-
-        return {"amount": result["0"],
-          "payout": result["1"],
-          "timestamp": result["2"],
-          "pending": result["3"],
-          "claimed": result["4"],
-          "win": result["5"],
-          "choice": result["6"],
-          "result": result["7"]};
+        if (!callbackCalled) {
+          callbackCalled = true;
+          callback();
+        }
+      })
+      .on("error", function(err){
+        console.log('claim error: ' + err);
       });
-      */
 
   }
 
   /**
   * Send player's prediction and wager to the contract.
   * TODO replace alerts with notifications
-  * TODO Maybe split post processing between events - is this necessary?
   * @param winChoice - player's prediction should be 0 (heads) or 1 (tails)
   * @param wager - amount player wagers on this toss.
   * @param dem - denomination of wager (valid web3 eth denominations: qwei,
@@ -121,45 +95,42 @@ var flipitService = function () {
     console.log('flipitService.doToss called ...');
     if (winchoices.HEADS != winChoice &&
         winchoices.TAILS != winChoice) {
-      alert ('Must choose heads or tails.');
+      callback('HEADS_OR_TAILS', null);
       return null;
     }
 
-    wager = initialWager();
+    var wagerValue = dem == 'wei'? wagerAmt : web3.utils.toWei(wagerAmt, dem);
+
+    if (minimumWager > wagerValue) {
+        callback('MINIMUM_WAGER', null);
+        return null;
+    }
 
     if (isInitialized) {
       var config = {
         from: playerAccount,
-        value: dem == 'wei'? dem : web3.utils.toWei(wagerAmt, dem),
+        value: wagerValue,
         gas: 2000000
       };
 
       contractInstance.methods.toss(parseInt(winChoice))
         .send(config, callback);
-        /*
-        .on("transactionHash", function(hash) {
-          console.log('toss transactionHash: ' + hash);
-        })
-        .on("confirmation", function(confNum) {
-          console.log('toss confNum: ' + confNum);
-        })
-        .on("receipt", function(receipt){
-          console.log('toss receipt: ' + JSON.stringify(receipt));
-        })
-        .on("error", function(err){
-          console.log('toss error: ' + JSON.stringify(err));
-        });
-        */
     }
     else {
       console.error ('toss Module flipitService is not initialized.');
     }
   }
 
+  /**
+  * Retrieve game statistics and any player wager information
+  * (if applicable).
+  */
   function getGameStats () {
     var unclaimedWin = false;
     var unclaimedQueryId = null;
 
+    // Retrieve any wager outstanding information Associated
+    // with currect user account.
     return contractInstance.methods.getAccountWager().call()
     .then (function(wagerData) {
       console.log("Wager Data: " + JSON.stringify(wagerData));
@@ -170,8 +141,11 @@ var flipitService = function () {
         unclaimedQueryId = wagerData[5];
       }
 
+      // Retrieve and return game statistics.
       return contractInstance.methods.getGameStats().call()
         .then(function(result) {
+          minimumWager = result[6];
+
           return {
             wagersMade: result[0],
             wagersWon: result[1],
@@ -180,22 +154,39 @@ var flipitService = function () {
             availableBalance: result[4],
             winMultiplyer: result[5],
             unclaimedWin: unclaimedWin,
-            unclaimedQueryId: unclaimedQueryId
+            unclaimedQueryId: unclaimedQueryId,
+            minimumWager: minimumWager
           };
       });
     });
   }
 
+  /**
+  * Expose current user's account id
+  */
   function getPlayerAccount() {
     return playerAccount;
   }
 
+  /**
+  * Expose toss result return event
+  */
   function getTossResultReturnedEvent () {
     return tossResultReturnedEvent;
   }
 
+  /**
+  * Expose toss submitted event
+  */
   function getTossSubmittedEvent () {
     return tossSubmittedEvent;
+  }
+
+  /**
+  * Expose contract logging event.
+  */
+  function getFlipItLogEvent () {
+    return flipItLogEvent;
   }
 
   /*
@@ -236,16 +227,29 @@ var flipitService = function () {
       });
   }
 
-  function onLoseEvent () {
-      if (loseEvent) {
-        loseEvent();
-      }
-  }
+  function setMinimumBet (amt, callback) {
+    var callbackCalled = false;
 
-  function onWinEvent () {
-    if (winEvent) {
-      winEvent();
-    }
+    var config = {
+      from: playerAccount
+    };
+
+    contractInstance.methods.setMinimumBet(web3.utils.toWei(amt, "ether"))
+      .send(config)
+      .on("transactionHash", function(hash) {
+        console.log('transactionHash: ' + hash);
+      })
+      .on("confirmation", function(confNum) {
+        console.log('confirmation: ' + confNum);
+      })
+      .on("receipt", function(receipt){
+        console.log('receipt: ' + receipt);
+
+        if(!callbackCalled) {
+          callbackCalled = true;
+          callback();
+        }
+      });
   }
 
   /**
@@ -280,16 +284,18 @@ var flipitService = function () {
 
   return {
     claimWin: claimWin,
+    doToss: doToss,
+    flipItLogEvent: getFlipItLogEvent,
     gameStats: getGameStats,
     init: initializeService,
     isAdmin: isAdmin,
     loadGame: loadGame,
-    doToss: doToss,
+    playerAccount: getPlayerAccount,
+    setMinimumBet: setMinimumBet,
+    tossResultReturnedEvent: getTossResultReturnedEvent,
+    tossSubmittedEvent: getTossSubmittedEvent,
     web3: web3,
     winChoices: winchoices,
-    withdraw: withdraw,
-    playerAccount: getPlayerAccount,
-    tossResultReturnedEvent: getTossResultReturnedEvent,
-    tossSubmittedEvent: getTossSubmittedEvent
+    withdraw: withdraw
   };
 }();
