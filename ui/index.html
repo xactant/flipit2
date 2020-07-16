@@ -234,7 +234,10 @@
 
         flipitService.init().then (function(result){
           var config = {
-            from: flipitService.playerAccount()
+            from: flipitService.playerAccount(),
+            filter: {
+              address: flipitService.playerAccount()
+            }
           };
 
           flipitService.flipItLogEvent()(config, function(error, result){
